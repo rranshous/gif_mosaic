@@ -9,10 +9,6 @@ include Magick
 GRAVITIES = [NorthWestGravity, NorthEastGravity,
              SouthWestGravity, SouthEastGravity]
 
-def clean_up
-  FileUtils.rm_rf "/tmp/frames"
-end
-
 SUB_IMAGE_DIMS = [320,240]
 def resize_image image
   image.change_geometry!(SUB_IMAGE_DIMS.join('x')) do |cols, rows, img|
@@ -35,36 +31,30 @@ def source_frames source_path
   new_frames
 end
 
-COMPOSITE_DIMS = [1000, 1000]
-def create_composites source_dir, target_frame_count
+MOVIE_DIMS = [1000, 1000]
+def create_movie source_dir, target_frame_count
   exploded_sources = Dir[File.join(source_dir, '*.gif')].take(4).sort
   image_streams = exploded_sources.map do |source_path|
     source_frames(source_path).cycle
   end
-  composite_frames = ImageList.new
-  target_frame_count.times.each do |frame_num|
-    puts "creating composite frame: #{frame_num}"
-    composite_frame = Image.new(*COMPOSITE_DIMS) do
-      self.background_color = "black"
+  movie = ImageList.new
+  target_frame_count.times do
+    frame = ImageList.new
+    image_streams.each do |image_stream|
+      frame.push image_stream.next
     end
-    image_streams.zip(GRAVITIES.cycle).each do |image_stream, gravity|
-      image = image_stream.next
-      composite_frame.composite! image, gravity, 100, 100,
-                                 OverCompositeOp
-    end
-    composite_frames.push composite_frame
+    frame = frame.montage {
+      self.background_color = 'black'
+      self.geometry = "#{SUB_IMAGE_DIMS.join('x')}+10+5"
+    }
+    movie.push frame.first
   end
-  composite_frames
+  movie
 end
-
 
 gif_source_dir = File.expand_path ARGV.shift
 output_path = File.expand_path ARGV.shift
 frame_count = (ARGV.shift || 100).to_i
 
-composites = create_composites gif_source_dir, frame_count
-
-puts "writing movie"
-composites.write output_path
-
-clean_up
+movie = create_movie gif_source_dir, frame_count
+movie.write output_path
