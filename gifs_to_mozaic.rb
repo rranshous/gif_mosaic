@@ -11,11 +11,7 @@ GRAVITIES = [NorthWestGravity, NorthEastGravity,
 
 SUB_IMAGE_DIMS = [320,240]
 def resize_image image
-  image.change_geometry!(SUB_IMAGE_DIMS.join('x')) do |cols, rows, img|
-    #base = Image.new(*SUB_IMAGE_DIMS) { self.background_color = 'black' }
-    img = img.resize(cols, rows)
-    #base.composite img, CenterGravity, 0, 0, OverCompositeOp
-  end
+  image.resize_to_fit(*SUB_IMAGE_DIMS)
 end
 
 def source_frames source_path
@@ -32,20 +28,25 @@ def source_frames source_path
 end
 
 MOVIE_DIMS = [1000, 1000]
-def create_movie source_dir, target_frame_count
-  exploded_sources = Dir[File.join(source_dir, '*.gif')].take(4).sort
+def create_movie source_dir
+  exploded_sources = Dir[File.join(source_dir, '*.gif')].sort
+  max_frames = 0
   image_streams = exploded_sources.map do |source_path|
-    source_frames(source_path).cycle
+    image_stream = source_frames(source_path)
+    max_frames = [image_stream.count, max_frames].max
+    image_stream.cycle
   end
+  target_frame_count = max_frames
   movie = ImageList.new
-  target_frame_count.times do
+  target_frame_count.times.each do |i|
+    puts "frame: #{i+1} / #{target_frame_count}"
     frame = ImageList.new
     image_streams.each do |image_stream|
       frame.push image_stream.next
     end
     frame = frame.montage {
       self.background_color = 'black'
-      self.geometry = "#{SUB_IMAGE_DIMS.join('x')}+10+5"
+      self.geometry = "#{SUB_IMAGE_DIMS.join('x')}+100+100"
     }
     movie.push frame.first
   end
@@ -54,7 +55,7 @@ end
 
 gif_source_dir = File.expand_path ARGV.shift
 output_path = File.expand_path ARGV.shift
-frame_count = (ARGV.shift || 100).to_i
 
-movie = create_movie gif_source_dir, frame_count
+movie = create_movie gif_source_dir
+puts "writing"
 movie.write output_path
